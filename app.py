@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify,abort,Response
+from flask import Flask, request, jsonify, abort, Response
 import post_method_functions as pmf
 import os
 
@@ -14,10 +14,14 @@ custom_config = r"--oem 3 --psm 6"
     }
 
     return: {
+        true if is okey
+        false if is not okey
         true | false
     }
 
 """
+
+
 @app.route("/", methods=["POST"])
 def main():
     if request.method == 'POST':
@@ -42,6 +46,7 @@ def main():
 
     else:
         return abort(Response(status=400, response="Invalid method"))
-    
+
+
 if __name__ == "__main__":
-    app.run(debug=True,port=8049)
+    app.run(debug=True, port=8049)

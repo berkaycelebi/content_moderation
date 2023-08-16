@@ -4,6 +4,8 @@ import torch
 import model_loader as ml
 
 # To detect violence
+
+
 def isviolence(img) -> bool:
     """Checks for violence in the given image
 
@@ -58,10 +60,26 @@ def isviolence(img) -> bool:
 # -----------------------------------------------#
 
 # To detect nudity
+
+exposedDict = {
+    "EXPOSED_ANUS": 0,
+    "EXPOSED_BUTTOCKS": .9,
+    "EXPOSED_BREAST_M": .8,
+    "EXPOSED_BREAST_F": .8,
+    "EXPOSED_GENITALIA_F": 0,
+    "EXPOSED_GENITALIA_M": 0,
+}
+
 def isnudityImage(img) -> bool:
-    response = ml.nudeClassifier.classify(img)
-    unsafe = response[img]['unsafe']
-    return True if unsafe > 0.65 else False
+    response = ml.nudeDetector.detect(img, min_prob=0.5)
+    if(len(response) == 0):
+        return False
+    for i in response:
+        if(i['label'] in exposedDict.keys() and i['score'] > exposedDict[i['label']]):
+            return True
+
+    return False
+
 
 def isnudityVideo(path) -> bool:
     response = ml.nudeClassifier.classify_video(path, batch_size=4)
@@ -69,5 +87,5 @@ def isnudityVideo(path) -> bool:
     for pred in response['preds'].values():
         if(pred['unsafe'] > 0.9):
             return True
-    
+
     return False

@@ -203,7 +203,7 @@ def generate_data_set(url):
         try:
             percentage = success/float(i) * 100
             if percentage < 22.0:
-                dataset.append(1)
+                data_set.append(1)
             elif((percentage >= 22.0) and (percentage < 61.0)):
                 data_set.append(0)
             else:
