@@ -13,6 +13,7 @@ import pytesseract
 import time
 import json
 import cv2
+import pika
 
 
 app = Flask(__name__)
@@ -25,11 +26,8 @@ REDIS_IMAGE_MODERATION_CHANNEL_RESULT = "image_moderation_result"
 DATA_DIRECTORY = "/Users/mac5/Projects/WorkoutAppsSocial/WorkoutAppsSocial.Api/wwwroot/"
 
 
-r = redis.Redis(
-    host='127.0.0.1',
-    port=6379,
-    decode_responses=True
-)
+connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+channel = connection.channel()
 
 
 """
@@ -73,69 +71,125 @@ def main():
         return abort(Response(status=400, response="Invalid method"))
 
 
+def callback(ch, method, properties, body):
+    print(" [x] Received %r" % body)
+    jsonValue = json.loads(body)
+    newPath = jsonValue['imagePath']
+    smallImagePath = jsonValue['smallImagePath']
+    mediumImagePath = jsonValue['mediumImagePath']
+    appCode = jsonValue['appCode']
+    userId = jsonValue['userId']
+    path = DATA_DIRECTORY + newPath
+    small_image_path = DATA_DIRECTORY + smallImagePath
+    medium_image_path = DATA_DIRECTORY + mediumImagePath
+    print("Image Moderation Request Received for: " + path)
+    if os.path.exists(path) == False:
+        print("File not found")
+        return
+    else:
+        start_time = time.time()
+        print("File found")
+        result, reason = imageControl(path)
+        if result == False:
+            print("Image Moderation Reason: " + str(reason))
+        else:
+            img = cv2.imread(path)
+            scale_percent = 50  # percent of original size
+            width = int(img.shape[1] * scale_percent / 100)
+            height = int(img.shape[0] * scale_percent / 100)
+            widthSmall = int(width * scale_percent / 100)
+            heightSmall = int(height * scale_percent / 100)
+            dim = (width, height)
+            dimSmall = (widthSmall, heightSmall)
+            image_resized_medium = cv2.resize(
+                img, dim, interpolation=cv2.INTER_AREA)
+            image_resized_small = cv2.resize(
+                img, dimSmall, interpolation=cv2.INTER_AREA)
+            print("Small Image Path: " + small_image_path)
+            print("Medium Image Path: " + medium_image_path)
+            cv2.imwrite(small_image_path, image_resized_small)
+            cv2.imwrite(medium_image_path, image_resized_medium)
+        total_time = time.time() - start_time
+        print("Image Moderation Time: " + str(total_time) + " seconds")
+        print("Image Moderation Result: " + str(result))
+        resultJson = {
+            "newImagePath": path,
+            "result": result,
+            "reason": reason,
+            "time": total_time,
+            "appCode": appCode,
+            "userId": userId
+        }
+      
+        channel.basic_publish(exchange='', routing_key=REDIS_IMAGE_MODERATION_CHANNEL_RESULT, body=json.dumps(resultJson))
+
+
 def redisSub():
-    print("Redis Sub Listening for Image Moderation...")
-    p = r.pubsub()
-    p.subscribe(REDIS_IMAGE_MODERATION_CHANNEL)
-    for message in p.listen():
-        messageType = message['type']
-        if messageType == 'message':
-            data = message['data']
-            jsonValue = json.loads(data)
-            newPath = jsonValue['imagePath']
-            smallImagePath = jsonValue['smallImagePath']
-            mediumImagePath = jsonValue['mediumImagePath']
-            appCode = jsonValue['appCode']
-            userId = jsonValue['userId']
-            path = DATA_DIRECTORY + newPath
-            small_image_path = DATA_DIRECTORY + smallImagePath
-            medium_image_path = DATA_DIRECTORY + mediumImagePath
-            print("Image Moderation Request Received for: " + path)
+    print("RabbitMQ Sub Listening for Image Moderation...")
+    channel.queue_declare(queue=REDIS_IMAGE_MODERATION_CHANNEL)
+    channel.basic_consume(
+        queue=REDIS_IMAGE_MODERATION_CHANNEL, on_message_callback=callback, auto_ack=True)
+    channel.start_consuming()
 
-            if os.path.exists(path) == False:
-                print("File not found")
-                continue
-            else:
-                start_time = time.time()
-                print("File found")
-                result, reason = imageControl(path)
+    # for message in p.listen():
+    #     messageType = message['type']
+    #     if messageType == 'message':
+    #         data = message['data']
+    #         jsonValue = json.loads(data)
+    #         newPath = jsonValue['imagePath']
+    #         smallImagePath = jsonValue['smallImagePath']
+    #         mediumImagePath = jsonValue['mediumImagePath']
+    #         appCode = jsonValue['appCode']
+    #         userId = jsonValue['userId']
+    #         path = DATA_DIRECTORY + newPath
+    #         small_image_path = DATA_DIRECTORY + smallImagePath
+    #         medium_image_path = DATA_DIRECTORY + mediumImagePath
+    #         print("Image Moderation Request Received for: " + path)
 
-                if result == False:
-                    print("Image Moderation Reason: " + str(reason))
-                else:
-                    img = cv2.imread(path)
-                    scale_percent = 50  # percent of original size
-                    width = int(img.shape[1] * scale_percent / 100)
-                    height = int(img.shape[0] * scale_percent / 100)
-                    widthSmall = int(width * scale_percent / 100)
-                    heightSmall = int(height * scale_percent / 100)
-                    dim = (width, height)
-                    dimSmall = (widthSmall, heightSmall)
-                    image_resized_medium = cv2.resize(
-                        img, dim, interpolation=cv2.INTER_AREA)
-                    image_resized_small = cv2.resize(
-                        img, dimSmall, interpolation=cv2.INTER_AREA)
+    #         if os.path.exists(path) == False:
+    #             print("File not found")
+    #             continue
+    #         else:
+    #             start_time = time.time()
+    #             print("File found")
+    #             result, reason = imageControl(path)
 
-                    print("Small Image Path: " + small_image_path)
-                    print("Medium Image Path: " + medium_image_path)
+    #             if result == False:
+    #                 print("Image Moderation Reason: " + str(reason))
+    #             else:
+    #                 img = cv2.imread(path)
+    #                 scale_percent = 50  # percent of original size
+    #                 width = int(img.shape[1] * scale_percent / 100)
+    #                 height = int(img.shape[0] * scale_percent / 100)
+    #                 widthSmall = int(width * scale_percent / 100)
+    #                 heightSmall = int(height * scale_percent / 100)
+    #                 dim = (width, height)
+    #                 dimSmall = (widthSmall, heightSmall)
+    #                 image_resized_medium = cv2.resize(
+    #                     img, dim, interpolation=cv2.INTER_AREA)
+    #                 image_resized_small = cv2.resize(
+    #                     img, dimSmall, interpolation=cv2.INTER_AREA)
 
-                    cv2.imwrite(small_image_path, image_resized_small)
-                    cv2.imwrite(medium_image_path, image_resized_medium)
-                total_time = time.time() - start_time
-                print("Image Moderation Time: " + str(total_time) + " seconds")
-                print("Image Moderation Result: " + str(result))
-                resultJson = {
+    #                 print("Small Image Path: " + small_image_path)
+    #                 print("Medium Image Path: " + medium_image_path)
 
-                    "newImagePath": path,
-                    "result": result,
-                    "reason": reason,
-                    "time": total_time,
-                    "appCode": appCode,
-                    "userId": userId
+    #                 cv2.imwrite(small_image_path, image_resized_small)
+    #                 cv2.imwrite(medium_image_path, image_resized_medium)
+    #             total_time = time.time() - start_time
+    #             print("Image Moderation Time: " + str(total_time) + " seconds")
+    #             print("Image Moderation Result: " + str(result))
+    #             resultJson = {
 
-                }
-                r.publish(REDIS_IMAGE_MODERATION_CHANNEL_RESULT,
-                          json.dumps(resultJson))
+    #                 "newImagePath": path,
+    #                 "result": result,
+    #                 "reason": reason,
+    #                 "time": total_time,
+    #                 "appCode": appCode,
+    #                 "userId": userId
+
+    #             }
+    #             r.publish(REDIS_IMAGE_MODERATION_CHANNEL_RESULT,
+    #                       json.dumps(resultJson))
 
 
 def imageControl(path):

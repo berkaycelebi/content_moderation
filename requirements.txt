@@ -90,4 +90,4 @@ Werkzeug
 wrapt
 zipp
 nudenet
-redis
+pika
