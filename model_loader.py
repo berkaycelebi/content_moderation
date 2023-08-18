@@ -1,7 +1,6 @@
 
 import pickle
 import torch
-from nudenet import NudeClassifier
 from nudenet import NudeDetector
 
 
@@ -39,5 +38,4 @@ violence_model.load_state_dict(checkpoint["state_dict"])
 #  ---------------------------------------------------------------------- #
 
 # initialize classifier (downloads the checkpoint file automatically the first time)
-nudeClassifier = NudeClassifier()
 nudeDetector = NudeDetector()
