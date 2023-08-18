@@ -13,7 +13,7 @@ import subprocess
 
 
 pytesseract.pytesseract.tesseract_cmd = (
-    r"/opt/homebrew/Cellar/tesseract/5.3.2/bin/tesseract"  # Set the tesseract path here
+    r"/opt/homebrew/bin/tesseract"  # Set the tesseract path here
 )
 
 extractor = URLExtract()
