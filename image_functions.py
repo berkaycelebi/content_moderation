@@ -7,19 +7,6 @@ import model_loader as ml
 
 
 def isviolence(img) -> bool:
-    """Checks for violence in the given image
-
-    Args:
-      img: A image object to be checked
-
-    Returns:
-      Boolean
-
-    Raises:
-      IOError – If the file cannot be found, or the image
-                cannot be opened and identified
-
-    """
     class_names = ["safe", "unsafe"]
     standard_normalization = transforms.Normalize(
         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
@@ -76,16 +63,6 @@ def isnudityImage(img) -> bool:
         return False
     for i in response:
         if(i['label'] in exposedDict.keys() and i['score'] > exposedDict[i['label']]):
-            return True
-
-    return False
-
-
-def isnudityVideo(path) -> bool:
-    response = ml.nudeClassifier.classify_video(path, batch_size=4)
-
-    for pred in response['preds'].values():
-        if(pred['unsafe'] > 0.9):
             return True
 
     return False

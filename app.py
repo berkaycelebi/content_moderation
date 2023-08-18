@@ -1,8 +1,4 @@
-from flask import Flask, request, jsonify, abort, Response
-import post_method_functions as pmf
 import os
-import redis
-from flask import jsonify, Response
 import speech_recognition as sr
 import re
 from PIL import Image
@@ -16,8 +12,6 @@ import cv2
 import pika
 
 
-app = Flask(__name__)
-
 custom_config = r"--oem 3 --psm 6"
 
 REDIS_IMAGE_MODERATION_CHANNEL = "image_moderation"
@@ -26,49 +20,13 @@ REDIS_IMAGE_MODERATION_CHANNEL_RESULT = "image_moderation_result"
 DATA_DIRECTORY = "/Users/mac5/Projects/WorkoutAppsSocial/WorkoutAppsSocial.Api/wwwroot/"
 
 
+pytesseract.pytesseract.tesseract_cmd = (
+    r"/opt/homebrew/bin/tesseract"  # Set the tesseract path here
+)
+
+
 connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
 channel = connection.channel()
-
-
-"""
-    data: {
-        type: "audio" | "video" | "image" | "text",
-        data: string (path file)
-    }
-
-    return: {
-        true if is okey
-        false if is not okey
-        true | false
-    }
-
-"""
-
-
-@app.route("/", methods=["POST"])
-def main():
-    if request.method == 'POST':
-        data = request.get_json()
-        t = data["type"]
-
-        path = data['data']
-
-        if os.path.exists(path) == False and t != "text":
-            return abort(Response(status=400, response="File not found"))
-
-        if t == "audio":
-            return pmf.audioControl(path)
-        elif t == "video":
-            return pmf.videoControl(path)
-        elif t == "image":
-            return pmf.imageControl(path)
-        elif t == "text":
-            return pmf.textControl(path)
-        else:
-            return abort(Response(status=400, response="Invalid type"))
-
-    else:
-        return abort(Response(status=400, response="Invalid method"))
 
 
 def callback(ch, method, properties, body):
@@ -120,8 +78,9 @@ def callback(ch, method, properties, body):
             "appCode": appCode,
             "userId": userId
         }
-      
-        channel.basic_publish(exchange='', routing_key=REDIS_IMAGE_MODERATION_CHANNEL_RESULT, body=json.dumps(resultJson))
+
+        channel.basic_publish(
+            exchange='', routing_key=REDIS_IMAGE_MODERATION_CHANNEL_RESULT, body=json.dumps(resultJson))
 
 
 def redisSub():
