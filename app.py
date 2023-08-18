@@ -1,11 +1,6 @@
 import os
-import speech_recognition as sr
-import re
 from PIL import Image
-import text_functions as tf
 import image_functions as imf
-import numpy as np
-import pytesseract
 import time
 import json
 import cv2
@@ -14,18 +9,30 @@ import pika
 
 custom_config = r"--oem 3 --psm 6"
 
-REDIS_IMAGE_MODERATION_CHANNEL = "image_moderation"
-REDIS_IMAGE_MODERATION_CHANNEL_RESULT = "image_moderation_result"
+IMAGE_MODERATION_CHANNEL = os.getenv("IMAGE_MODERATION_CHANNEL")
+IMAGE_MODERATION_CHANNEL_RESULT = os.getenv("IMAGE_MODERATION_CHANNEL_RESULT")
 
-DATA_DIRECTORY = "/Users/mac5/Projects/WorkoutAppsSocial/WorkoutAppsSocial.Api/wwwroot/"
+DATA_DIRECTORY = os.getenv("DATA_DIRECTORY")
+RABBITMQ_HOST = os.getenv("RABBITMQ_HOST")
+RABBITMQ_PORT = os.getenv("RABBITMQ_PORT")
+RABBITMQ_USER = os.getenv("RABBITMQ_USER")
+RABBITMQ_PASSWORD = os.getenv("RABBITMQ_PASSWORD")
+
+print("DATA_DIRECTORY: " + DATA_DIRECTORY)
+print("RABBITMQ_HOST: " + RABBITMQ_HOST)
+print("RABBITMQ_PORT: " + RABBITMQ_PORT)
+print("RABBITMQ_USER: " + RABBITMQ_USER)
+print("RABBITMQ_PASSWORD: " + RABBITMQ_PASSWORD)
+print("IMAGE_MODERATION_CHANNEL: " + IMAGE_MODERATION_CHANNEL)
 
 
-pytesseract.pytesseract.tesseract_cmd = (
-    r"/opt/homebrew/bin/tesseract"  # Set the tesseract path here
-)
+
+# pytesseract.pytesseract.tesseract_cmd = (
+#     r"/opt/homebrew/bin/tesseract"  # Set the tesseract path here
+# )
 
 
-connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+connection = pika.BlockingConnection(pika.ConnectionParameters(RABBITMQ_HOST, RABBITMQ_PORT, '/', pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)))
 channel = connection.channel()
 
 
@@ -80,14 +87,14 @@ def callback(ch, method, properties, body):
         }
 
         channel.basic_publish(
-            exchange='', routing_key=REDIS_IMAGE_MODERATION_CHANNEL_RESULT, body=json.dumps(resultJson))
+            exchange='', routing_key=IMAGE_MODERATION_CHANNEL_RESULT, body=json.dumps(resultJson))
 
 
 def redisSub():
     print("RabbitMQ Sub Listening for Image Moderation...")
-    channel.queue_declare(queue=REDIS_IMAGE_MODERATION_CHANNEL)
+    channel.queue_declare(queue=IMAGE_MODERATION_CHANNEL)
     channel.basic_consume(
-        queue=REDIS_IMAGE_MODERATION_CHANNEL, on_message_callback=callback, auto_ack=True)
+        queue=IMAGE_MODERATION_CHANNEL, on_message_callback=callback, auto_ack=True)
     channel.start_consuming()
 
     # for message in p.listen():
@@ -158,15 +165,6 @@ def imageControl(path):
     if imf.isnudityImage(path):
         return False, "Nudity"
 
-    img = img_org.resize((160, 160))
-    img = np.array(img)
-    extractedInformation = pytesseract.image_to_string(img_org)
-    extractedInformation = re.sub(r"\n", " ", extractedInformation)
-    extractedInformation = re.sub(r"\f", "", extractedInformation)
-    if tf.ishate(extractedInformation):
-        return False, "Hate"
-    if tf.isspam(extractedInformation):
-        return False, "Spam"
     return True, "OK"
 
 

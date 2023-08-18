@@ -1,10 +1,7 @@
 httpcore
 httpx
-numpy
 opencv-python
 Pillow
-pytesseract
-SpeechRecognition
 torch
 torchvision
 nudenet
